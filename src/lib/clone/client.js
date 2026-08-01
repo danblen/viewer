@@ -9,7 +9,7 @@
  * Last download path is persisted in localStorage.
  */
 
-import { apiUrl, getServerUrl, setServerUrl, isDev } from './apiConfig';
+import { apiUrl, getServerUrl, setServerUrl, isDev } from '../api/config.js';
 
 // Where a locally-running clone server listens by default. Used as an
 // automatic fallback for static HTTPS deployments (e.g. GitHub Pages) that
@@ -28,10 +28,6 @@ export async function searchRepos(query) {
 }
 
 const LS_KEY = 'nv_clone_last_path';
-
-export function getLastPath() {
-  return localStorage.getItem(LS_KEY);
-}
 
 export function saveLastPath(p) {
   if (p) localStorage.setItem(LS_KEY, p);
@@ -129,7 +125,7 @@ export function cloneRepo(repo, dest, { onProgress, onDone, onError } = {}) {
  * Re-parse a raw progress/error text into a friendly error.
  * Used as a client-side fallback when the accumulated log contains
  * a recognisable pattern that the server didn't catch explicitly.
- * Must stay in sync with ERROR_PATTERNS in server/clone-server.cjs.
+ * Must stay in sync with ERROR_PATTERNS in server/index.cjs.
  */
 export function parseErrorFromLog(log) {
   const t = (log || '').toLowerCase();

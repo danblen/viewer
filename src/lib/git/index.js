@@ -10,7 +10,7 @@
  * which mode it's in.
  */
 
-import { apiUrl } from './apiConfig';
+import { apiUrl } from '../api/config.js';
 import ignore from 'ignore';
 
 // Lazy-load isomorphic-git with its polyfills.
@@ -260,35 +260,6 @@ export async function isGitRepoServer(serverRoot) {
     return data.isRepo === true;
   } catch {
     return false;
-  }
-}
-
-// ============================================================
-// Get current branch name
-// ============================================================
-
-export async function getBranchFsa(rootHandle) {
-  try {
-    const g = await git();
-    const branch = await g.currentBranch({
-      fs: createFsaFs(rootHandle),
-      dir: '.',
-      fullname: false,
-    });
-    return branch || 'HEAD';
-  } catch {
-    return 'HEAD';
-  }
-}
-
-export async function getBranchServer(serverRoot) {
-  try {
-    const r = await fetch(apiUrl(`/api/git-status?path=${encodeURIComponent(serverRoot)}`));
-    if (!r.ok) return 'HEAD';
-    const data = await r.json();
-    return data.branch || 'HEAD';
-  } catch {
-    return 'HEAD';
   }
 }
 
@@ -611,67 +582,4 @@ export async function getFileDiffServer(serverRoot, filepath, status) {
     newText: normalizeEol(data.newText || ''),
     status,
   };
-}
-
-// ============================================================
-// Build a tree structure from flat changed-file paths
-// (for rendering in the GitDiffPanel)
-// ============================================================
-
-/**
- * @typedef {Object} GitTreeNode
- * @property {string} name
- * @property {string} path
- * @property {'directory'|'file'} kind
- * @property {string} [status]   — only for files
- * @property {GitTreeNode[]} [children]
- */
-
-/**
- * Convert a flat list of changed files into a nested tree.
- * Files at the same level are sorted: directories first, then files.
- */
-export function buildChangeTree(changes) {
-  const root = { name: '', path: '', kind: 'directory', children: [] };
-
-  for (const change of changes) {
-    const parts = change.path.split('/');
-    let current = root;
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      const isLeaf = i === parts.length - 1;
-      const childPath = parts.slice(0, i + 1).join('/');
-
-      if (isLeaf) {
-        current.children.push({
-          name: part,
-          path: childPath,
-          kind: 'file',
-          status: change.status,
-        });
-      } else {
-        let dir = current.children.find(
-          c => c.kind === 'directory' && c.name === part
-        );
-        if (!dir) {
-          dir = { name: part, path: childPath, kind: 'directory', children: [] };
-          current.children.push(dir);
-        }
-        current = dir;
-      }
-    }
-  }
-
-  // Sort each level: directories first (alpha), then files (alpha)
-  function sortNode(node) {
-    if (!node.children) return;
-    node.children.sort((a, b) => {
-      if (a.kind !== b.kind) return a.kind === 'directory' ? -1 : 1;
-      return a.name.localeCompare(b.name, 'zh-CN', { numeric: true });
-    });
-    node.children.forEach(sortNode);
-  }
-  sortNode(root);
-
-  return root.children;
 }

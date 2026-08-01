@@ -17,7 +17,7 @@ const { spawn, execFile, execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const rag = require('./rag-engine.cjs');
+const rag = require('./rag/engine.cjs');
 
 // ── Constants ─────────────────────────────────────────────
 

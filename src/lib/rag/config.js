@@ -7,7 +7,7 @@
  * own base URL, API key and model name.
  *
  * All values live only in this browser's localStorage and are sent to the
- * local clone-server with each request; they are never stored server-side.
+ * local server (server/index.cjs) with each request; they are never stored server-side.
  */
 
 const LS_KEY = 'nv_rag_config';

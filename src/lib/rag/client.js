@@ -2,11 +2,11 @@
  * rag.js — client helpers for the per-space RAG backend.
  *
  * Indexing / querying always go through the local clone-server
- * (see server/rag-engine.cjs). Server-backed spaces are indexed by path;
+ * (see server/rag/engine.cjs). Server-backed spaces are indexed by path;
  * browser (FSA) spaces ship their file contents to the backend.
  */
 
-import { apiUrl } from './apiConfig';
+import { apiUrl } from '../api/config.js';
 
 /**
  * Stable index key for a space:
