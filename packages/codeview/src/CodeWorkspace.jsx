@@ -87,6 +87,8 @@ class PanelErrorBoundary extends Component {
  * Props:
  *  - provider            FileProvider (required once a space is open)
  *  - providerKey         Opaque key; changing it reloads the tree + git.
+ *  - refreshToken        Changing it refreshes expanded dirs without reset.
+ *  - autoRefreshOnFocus  Refresh tree/git on window focus (default true).
  *  - rootName            Display name of the current root.
  *  - spaces, activeSpaceId, onSwitchSpace, onSelectDirectory,
  *    onDeleteSpace, onCloneGithub, onOpenAsWorkspace  (all optional)
@@ -100,6 +102,8 @@ class PanelErrorBoundary extends Component {
 export default function CodeWorkspace({
   provider,
   providerKey,
+  refreshToken,
+  autoRefreshOnFocus = true,
   rootName = null,
   spaces = [],
   activeSpaceId = null,
@@ -247,7 +251,7 @@ export default function CodeWorkspace({
     setGitDiffError(null);
     try {
       const d = await provider.git.diff(fileNode.path, fileNode.status);
-      if (d) setGitDiffData(d);
+      setGitDiffData(d && typeof d === 'object' ? d : { oldText: '', newText: '' });
     } catch (err) {
       setGitDiffError(err.message || String(err));
     } finally {
@@ -308,14 +312,7 @@ export default function CodeWorkspace({
     try {
       const entries = await provider.listDir(node.path);
       const children = entries.map(toTreeNode);
-      const preloaded = await Promise.all(children.map(async (ch) => {
-        if (ch.kind === 'directory') {
-          const sub = await provider.listDir(ch.path).catch(() => []);
-          return { ...ch, children: sub.map(toTreeNode) };
-        }
-        return ch;
-      }));
-      setFileTree((prev) => (findNodeByPath(prev, node.path) ? setChildrenInTree(prev, node.path, preloaded) : prev));
+      setFileTree((prev) => (findNodeByPath(prev, node.path) ? setChildrenInTree(prev, node.path, children) : prev));
     } catch (err) {
       console.error('Failed to load children:', err);
       setFileTree((prev) => setChildrenInTree(prev, node.path, []));
@@ -329,6 +326,7 @@ export default function CodeWorkspace({
     treeLastRefreshRef.current = now;
     treeRefreshRunningRef.current = true;
     try {
+      provider.invalidateReadCache?.();
       const fresh = await refreshLevel(provider, '', fileTreeRef.current);
       setFileTree(fresh);
     } catch { /* quiet */ }
@@ -498,6 +496,19 @@ export default function CodeWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider, key]);
 
+  // Host-triggered refresh (preserves expanded tree + selection)
+  const prevRefreshTokenRef = useRef(undefined);
+  useEffect(() => {
+    if (refreshToken == null || refreshToken === '') return;
+    if (prevRefreshTokenRef.current === undefined) {
+      prevRefreshTokenRef.current = refreshToken;
+      return;
+    }
+    if (prevRefreshTokenRef.current === refreshToken) return;
+    prevRefreshTokenRef.current = refreshToken;
+    refreshFileTree();
+  }, [refreshToken, refreshFileTree]);
+
   // Auto-refresh git when the git panel opens
   useEffect(() => {
     if (activeRightPanel === 'git' && isGitRepo) refreshGitStatusQuiet();
@@ -505,6 +516,7 @@ export default function CodeWorkspace({
 
   // Auto-refresh git + tree on window/tab focus
   useEffect(() => {
+    if (!autoRefreshOnFocus) return;
     const onFocus = () => { refreshGitStatusQuiet(); refreshFileTree(); };
     const onVisible = () => { if (!document.hidden) { refreshGitStatusQuiet(); refreshFileTree(); } };
     window.addEventListener('focus', onFocus);
@@ -513,7 +525,7 @@ export default function CodeWorkspace({
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [refreshGitStatusQuiet, refreshFileTree]);
+  }, [autoRefreshOnFocus, refreshGitStatusQuiet, refreshFileTree]);
 
   // ── Resizers ─────────────────────────────────────────────
   const onSidebarResizeStart = useCallback((e) => {

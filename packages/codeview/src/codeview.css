@@ -38,6 +38,16 @@
   --cv-shadow-md: 0 4px 16px rgba(0,0,0,0.08);
   --cv-shadow-lg: 0 8px 28px rgba(0,0,0,0.10);
 
+  /* VS Code–style diff colors */
+  --cv-diff-remove-bg: #ffebe9;
+  --cv-diff-remove-gutter: #ffcecb;
+  --cv-diff-remove-text: #cf222e;
+  --cv-diff-add-bg: #e6ffec;
+  --cv-diff-add-gutter: #ccffdd;
+  --cv-diff-add-text: #1a7f37;
+  --cv-diff-word-del: rgba(255, 0, 0, 0.2);
+  --cv-diff-word-add: rgba(0, 255, 0, 0.2);
+
   /* Internal aliases — consumed by the rest of this stylesheet */
   --color-bg:           var(--cv-color-bg);
   --color-bg-secondary: var(--cv-color-bg-secondary);
@@ -2542,14 +2552,14 @@
   opacity: 0.4;
 }
 
-/* ── Diff viewer (split view) ───────────────────────────── */
+/* ── Diff viewer (VS Code–style side-by-side) ─────────────── */
 .git-diff-viewer {
   height: 100%;
   display: flex;
   flex-direction: column;
   font-family: var(--font-mono);
-  font-size: 11.5px;
-  line-height: 1.55;
+  font-size: 12px;
+  line-height: 20px;
 }
 .git-diff-headers {
   display: flex;
@@ -2559,13 +2569,34 @@
 }
 .git-diff-pane-header {
   flex: 1;
-  padding: 4px 8px;
-  font-size: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
   font-weight: 600;
-  color: var(--color-text-3);
+  color: var(--color-text-2);
   font-family: var(--font-sans);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
+}
+.git-diff-pane-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  font-family: var(--font-mono);
+}
+.git-diff-pane-tag.removed {
+  background: var(--cv-diff-remove-gutter);
+  color: var(--cv-diff-remove-text);
+}
+.git-diff-pane-tag.added {
+  background: var(--cv-diff-add-gutter);
+  color: var(--cv-diff-add-text);
 }
 .git-diff-rows {
   flex: 1;
@@ -2575,74 +2606,129 @@
 .git-diff-row-pair {
   display: flex;
   align-items: stretch;
+  min-height: 20px;
 }
 .git-diff-row-side {
   flex: 1;
   display: flex;
+  align-items: stretch;
   min-width: 0;
-  padding-right: 4px;
+  min-height: 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
 }
 .git-diff-divider {
   width: 1px;
   background: var(--color-border);
   flex-shrink: 0;
 }
-.git-diff-linenum {
-  width: 34px;
-  min-width: 34px;
-  text-align: right;
-  padding: 0 6px 0 4px;
-  color: var(--color-text-3);
+.git-diff-indicator {
+  width: 16px;
+  min-width: 16px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
   user-select: none;
   flex-shrink: 0;
-  font-size: 10px;
+  line-height: 20px;
+}
+.git-diff-linenum {
+  width: 40px;
+  min-width: 40px;
+  text-align: right;
+  padding: 0 8px 0 4px;
+  user-select: none;
+  flex-shrink: 0;
+  font-size: 11px;
+  line-height: 20px;
+  color: var(--color-text-3);
 }
 .git-diff-line-content {
   flex: 1;
   min-width: 0;
   white-space: pre;
-  overflow: hidden;
-  padding-right: 8px;
+  overflow-x: auto;
+  padding: 0 12px 0 4px;
   color: var(--color-text);
+  line-height: 20px;
+  tab-size: 2;
 }
 
-/* Row type backgrounds */
+/* VS Code row colors — delete red / insert green */
 .git-diff-row-side.context {
-  background: transparent;
+  background: var(--color-bg);
 }
-.git-diff-row-side.added {
-  background: rgba(63, 185, 80, 0.08);
-}
-.git-diff-row-side.added .git-diff-linenum {
-  color: #2d9e42;
+.git-diff-row-side.context .git-diff-indicator {
+  color: transparent;
 }
 .git-diff-row-side.removed {
-  background: rgba(248, 81, 73, 0.08);
+  background: var(--cv-diff-remove-bg);
 }
+.git-diff-row-side.removed .git-diff-indicator,
 .git-diff-row-side.removed .git-diff-linenum {
-  color: #d63a33;
+  background: var(--cv-diff-remove-gutter);
+  color: var(--cv-diff-remove-text);
 }
-.git-diff-row-side.modified {
-  background: rgba(210, 153, 34, 0.06);
+.git-diff-row-side.added {
+  background: var(--cv-diff-add-bg);
 }
-.git-diff-row-side.modified .git-diff-linenum {
-  color: #b08420;
+.git-diff-row-side.added .git-diff-indicator,
+.git-diff-row-side.added .git-diff-linenum {
+  background: var(--cv-diff-add-gutter);
+  color: var(--cv-diff-add-text);
 }
 .git-diff-row-side.empty {
-  background: var(--color-bg-secondary);
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--color-bg-secondary),
+    var(--color-bg-secondary) 4px,
+    var(--color-bg) 4px,
+    var(--color-bg) 8px
+  );
 }
-.git-diff-row-side.empty .git-diff-line-content {
-  color: var(--color-text-3);
+.git-diff-row-side.empty .git-diff-indicator {
+  color: transparent;
+}
+.git-diff-row-side.empty .git-diff-linenum {
+  background: var(--color-bg-secondary);
+  color: transparent;
+}
+.git-diff-empty-cell {
+  display: block;
+  min-height: 20px;
 }
 
-/* Word-level highlight */
+/* Inline char diff (stronger contrast) */
 .git-word-add {
-  background: rgba(63, 185, 80, 0.22);
+  background: var(--cv-diff-word-add);
+  outline: 1px solid rgba(26, 127, 55, 0.35);
   border-radius: 2px;
 }
 .git-word-del {
-  background: rgba(248, 81, 73, 0.22);
+  background: var(--cv-diff-word-del);
+  outline: 1px solid rgba(207, 34, 46, 0.35);
   border-radius: 2px;
+  text-decoration: line-through;
+  text-decoration-color: rgba(207, 34, 46, 0.55);
+}
+
+/* Collapsed unchanged block */
+.git-diff-collapsed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 6px 12px;
+  font-size: 11px;
+  color: var(--color-text-3);
+  background: var(--color-bg-secondary);
+  border-top: 1px solid var(--color-border-light);
+  border-bottom: 1px solid var(--color-border-light);
+  font-family: var(--font-sans);
+  user-select: none;
+}
+.git-diff-collapsed span {
+  color: var(--color-text-3);
+  letter-spacing: 2px;
 }
 
 .git-diff-empty {
@@ -2696,10 +2782,22 @@
 }
 .git-diff-viewer-status {
   font-size: 11px;
-  padding: 1px 6px;
-  border-radius: 3px;
-  background: var(--color-bg-hover);
-  color: var(--color-text-2);
+  padding: 1px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+.git-diff-viewer-status.status-modified {
+  background: rgba(210, 153, 34, 0.15);
+  color: #9a6700;
+}
+.git-diff-viewer-status.status-added,
+.git-diff-viewer-status.status-untracked {
+  background: var(--cv-diff-add-gutter);
+  color: var(--cv-diff-add-text);
+}
+.git-diff-viewer-status.status-deleted {
+  background: var(--cv-diff-remove-gutter);
+  color: var(--cv-diff-remove-text);
 }
 .git-diff-viewer-body {
   flex: 1;

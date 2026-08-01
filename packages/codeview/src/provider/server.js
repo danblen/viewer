@@ -11,16 +11,51 @@
  */
 import { MAX_TEXT_VIEW_SIZE, sortEntries } from './shared';
 
+const DEFAULT_READ_CACHE_SIZE = 32;
+
+/** Simple LRU for readFileBlob results (path → Blob). */
+class ReadCache {
+  constructor(max = DEFAULT_READ_CACHE_SIZE) {
+    this._max = max;
+    this._map = new Map();
+  }
+
+  get(path) {
+    if (!this._map.has(path)) return undefined;
+    const v = this._map.get(path);
+    this._map.delete(path);
+    this._map.set(path, v);
+    return v;
+  }
+
+  set(path, blob) {
+    if (this._map.has(path)) this._map.delete(path);
+    this._map.set(path, blob);
+    if (this._map.size > this._max) {
+      const oldest = this._map.keys().next().value;
+      this._map.delete(oldest);
+    }
+  }
+
+  clear() {
+    this._map.clear();
+  }
+}
+
 export class ServerProvider {
   /**
    * @param {string} baseUrl  Origin for the API (e.g. '' for same-origin, or 'http://localhost:5015')
    * @param {string} rootPath Absolute disk path of the space root
    * @param {object} [options]
+   * @param {typeof fetch} [options.fetch] Custom fetch (e.g. for auth headers)
+   * @param {number} [options.readCacheSize=32] LRU size for file reads; 0 disables cache
    * @param {{status:Function, diff:Function}} [options.git]
    */
   constructor(baseUrl, rootPath, options = {}) {
     this._base = (baseUrl || '').replace(/\/+$/, '');
     this._rootPath = rootPath;
+    this._fetch = options.fetch || fetch;
+    this._readCache = options.readCacheSize === 0 ? null : new ReadCache(options.readCacheSize ?? DEFAULT_READ_CACHE_SIZE);
     this._git = options.git || null;
     // relative path → absolute server path
     this._abs = new Map();
@@ -39,6 +74,11 @@ export class ServerProvider {
     }
   }
 
+  /** Drop cached file reads (e.g. after external writes). */
+  invalidateReadCache() {
+    this._readCache?.clear();
+  }
+
   _url(path) {
     return this._base ? this._base + path : path;
   }
@@ -46,7 +86,7 @@ export class ServerProvider {
   async listDir(path = '') {
     const abs = this._abs.get(path);
     if (abs == null) throw new Error('未知目录：' + path);
-    const r = await fetch(this._url(`/api/read-tree?path=${encodeURIComponent(abs)}`));
+    const r = await this._fetch(this._url(`/api/read-tree?path=${encodeURIComponent(abs)}`));
     if (!r.ok) return [];
     const { children } = await r.json();
     const entries = (children || []).map((c) => {
@@ -72,13 +112,18 @@ export class ServerProvider {
   }
 
   async readFileBlob(path) {
+    const cached = this._readCache?.get(path);
+    if (cached) return cached;
+
     const abs = await this._absOf(path);
-    const r = await fetch(this._url(`/api/read-file?path=${encodeURIComponent(abs)}`));
+    const r = await this._fetch(this._url(`/api/read-file?path=${encodeURIComponent(abs)}`));
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
       throw new Error(err.error || '无法读取文件');
     }
-    return r.blob();
+    const blob = await r.blob();
+    this._readCache?.set(path, blob);
+    return blob;
   }
 
   async readFileText(path, maxBytes = MAX_TEXT_VIEW_SIZE) {

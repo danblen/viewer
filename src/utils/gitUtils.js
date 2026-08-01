@@ -345,40 +345,59 @@ async function createIgnoreFilter(rootHandle) {
   return ig;
 }
 
-/**
- * Recursively walk the working directory, collecting all file paths.
- * Skips the .git directory and any directory matched by the ignore filter.
- * @param {FileSystemDirectoryHandle} dirHandle
- * @param {Object} ig — ignore instance
- * @param {string} prefix — path prefix (for recursion)
- * @returns {Promise<string[]>} array of file paths relative to repo root
- */
+const SKIP_GIT_ANYWHERE = new Set(['node_modules', '.git']);
+/** Heavy dirs — only skip at repository root (not e.g. src/vendor/). */
+const SKIP_GIT_AT_ROOT = new Set([
+  'dist', 'build', '.next', '.nuxt',
+  'coverage', '.cache', '.turbo', '.parcel-cache',
+  '.svelte-kit', '.vercel', '__pycache__', '.pytest_cache',
+  'bower_components',
+]);
+
+function shouldSkipGitPath(filepath) {
+  const parts = filepath.split('/');
+  if (parts.some((part) => SKIP_GIT_ANYWHERE.has(part))) return true;
+  return parts.length > 0 && SKIP_GIT_AT_ROOT.has(parts[0]);
+}
+
+/** Map isomorphic-git statusMatrix row → UI status (null = skip). */
+function mapMatrixStatus(head, workdir, stage) {
+  if (head === 1 && workdir === 1 && stage === 1) return null;
+  if (head === 0 && workdir === 0 && stage === 0) return null;
+  if (head === 0 && workdir === 2) return 'added';
+  if (head === 1 && workdir === 0) return 'deleted';
+  if (head === 1 && workdir === 2) return 'modified';
+  if (head === 0 && workdir === 2 && stage >= 2) return 'added';
+  if (stage === 2 || stage === 3) return 'modified';
+  return 'modified';
+}
+
+function fileBaseName(filepath) {
+  return filepath.includes('/') ? filepath.slice(filepath.lastIndexOf('/') + 1) : filepath;
+}
+
+function normalizeEol(text) {
+  return text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+}
+
 async function walkWorkingDirectory(dirHandle, ig, prefix = '') {
   const files = [];
   for await (const entry of dirHandle.values()) {
-    const path = prefix ? `${prefix}/${entry.name}` : entry.name;
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (entry.kind === 'directory') {
       if (entry.name === '.git') continue;
-      // Skip ignored directories (check with trailing slash for dir patterns)
-      if (ig.ignores(path + '/')) continue;
-      files.push(...await walkWorkingDirectory(entry, ig, path));
+      if (ig.ignores(rel + '/')) continue;
+      files.push(...await walkWorkingDirectory(entry, ig, rel));
     } else if (entry.kind === 'file') {
-      if (ig.ignores(path)) continue;
-      files.push(path);
+      if (ig.ignores(rel)) continue;
+      files.push(rel);
     }
   }
   return files;
 }
 
-/**
- * Read raw bytes of a file from the FSA root handle.
- * @param {FileSystemDirectoryHandle} rootHandle
- * @param {string} filepath — path relative to repo root
- * @returns {Promise<Uint8Array>}
- */
 async function readFileBytesFsa(rootHandle, filepath) {
-  const clean = filepath.replace(/^\.\//, '');
-  const parts = clean.split('/');
+  const parts = filepath.replace(/^\.\//, '').split('/').filter(Boolean);
   let dir = rootHandle;
   for (let i = 0; i < parts.length - 1; i++) {
     dir = await dir.getDirectoryHandle(parts[i]);
@@ -388,31 +407,75 @@ async function readFileBytesFsa(rootHandle, filepath) {
   return new Uint8Array(await file.arrayBuffer());
 }
 
-/** Compare two Uint8Arrays for equality. */
-function bytesEqual(a, b) {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return false;
+/** Fallback when statusMatrix is empty/unavailable — text compare with EOL normalization. */
+async function getGitStatusFsaFallback(rootHandle, g, fs, headTreeMap, ig) {
+  const changes = [];
+  let workdirFiles = [];
+  try {
+    workdirFiles = await walkWorkingDirectory(rootHandle, ig);
+  } catch (err) {
+    console.error('[gitUtils] walkWorkingDirectory failed:', err);
+    return changes;
   }
-  return true;
+  const workdirSet = new Set(workdirFiles.map((p) => p.replace(/\\/g, '/')));
+
+  for (const [filepath, blobOid] of headTreeMap) {
+    const norm = filepath.replace(/\\/g, '/');
+    if (shouldSkipGitPath(norm)) continue;
+    if (!workdirSet.has(norm)) {
+      changes.push({ path: norm, name: fileBaseName(norm), status: 'deleted' });
+      continue;
+    }
+    try {
+      const { blob } = await g.readBlob({ fs, dir: '.', oid: blobOid });
+      const headText = normalizeEol(new TextDecoder('utf-8', { fatal: false }).decode(blob));
+      const workText = normalizeEol(
+        new TextDecoder('utf-8', { fatal: false }).decode(await readFileBytesFsa(rootHandle, norm)),
+      );
+      if (headText !== workText) {
+        changes.push({ path: norm, name: fileBaseName(norm), status: 'modified' });
+      }
+    } catch { /* skip unreadable */ }
+  }
+
+  if (headTreeMap.size > 0) {
+    const tracked = new Set([...headTreeMap.keys()].map((p) => p.replace(/\\/g, '/')));
+    for (const filepath of workdirFiles) {
+      const norm = filepath.replace(/\\/g, '/');
+      if (tracked.has(norm)) continue;
+      if (shouldSkipGitPath(norm)) continue;
+      if (ig.ignores(norm)) continue;
+      changes.push({ path: norm, name: fileBaseName(norm), status: 'added' });
+    }
+  } else {
+    for (const filepath of workdirFiles) {
+      const norm = filepath.replace(/\\/g, '/');
+      if (shouldSkipGitPath(norm)) continue;
+      if (ig.ignores(norm)) continue;
+      changes.push({ path: norm, name: fileBaseName(norm), status: 'added' });
+    }
+  }
+
+  return changes;
 }
 
-/**
- * @typedef {Object} GitChange
- * @property {string} path     — file path relative to repo root
- * @property {string} name     — file name (last segment)
- * @property {string} status   — 'modified' | 'added' | 'deleted' | 'untracked' | 'renamed'
- */
+function changesFromStatusMatrix(matrix, ig) {
+  const changes = [];
+  for (const [filepath, head, workdir, stage] of matrix) {
+    const status = mapMatrixStatus(head, workdir, stage);
+    if (!status) continue;
+    if (shouldSkipGitPath(filepath)) continue;
+    if (ig.ignores(filepath)) continue;
+    changes.push({ path: filepath, name: fileBaseName(filepath), status });
+  }
+  return changes;
+}
 
 /**
  * Get changed files for a FSA-backed space.
  *
- * Replaces the unreliable `statusMatrix` with a direct approach:
- *   1. Read HEAD tree via isomorphic-git (log → readCommit → readTree)
- *   2. Walk the working directory via FSA API
- *   3. Filter via `ignore` npm package for .gitignore support
- *   4. For tracked files: compare actual bytes (HEAD blob vs workdir file)
- *   5. For untracked files: filter against .gitignore
+ * Primary: isomorphic-git statusMatrix. Fallback (when matrix is empty or throws):
+ * HEAD tree vs workdir with normalized line endings — avoids false positives from CRLF.
  *
  * @param {FileSystemDirectoryHandle} rootHandle
  * @returns {Promise<{changes: GitChange[], branch: string, headTreeMap: Map, fs: Object}>}
@@ -421,63 +484,31 @@ export async function getGitStatusFsa(rootHandle) {
   const g = await git();
   const fs = createFsaFs(rootHandle);
 
-  // Get branch name
   let branch = 'HEAD';
   try {
     branch = await g.currentBranch({ fs, dir: '.', fullname: false }) || 'HEAD';
   } catch { /* ignore */ }
 
-  // Build HEAD tree map (path → blob oid) — used for both status & diff
   const headTreeMap = await buildHeadTreeMapFsa(g, fs);
-
-  // Build .gitignore filter using the `ignore` package
   const ig = await createIgnoreFilter(rootHandle);
+  let changes = [];
+  let matrix = [];
 
-  // Walk the working directory (skips .git and ignored dirs)
-  let workdirFiles = [];
   try {
-    workdirFiles = await walkWorkingDirectory(rootHandle, ig);
+    matrix = await g.statusMatrix({ fs, dir: '.' });
+    if (matrix.length > 0) {
+      changes = changesFromStatusMatrix(matrix, ig);
+    }
   } catch (err) {
-    console.error('[gitUtils] walkWorkingDirectory failed:', err);
-    return { changes: [], branch, headTreeMap, fs };
+    console.warn('[gitUtils] statusMatrix failed, using fallback:', err);
   }
 
-  const changes = [];
-  const workdirSet = new Set(workdirFiles);
-
-  // 1. Check tracked files (in HEAD) for modifications or deletions
-  for (const [filepath, blobOid] of headTreeMap) {
-    const inWorkdir = workdirSet.has(filepath);
-    if (!inWorkdir) {
-      // File in HEAD but not in working directory → deleted
-      const name = filepath.includes('/') ? filepath.slice(filepath.lastIndexOf('/') + 1) : filepath;
-      changes.push({ path: filepath, name, status: 'deleted' });
-      continue;
-    }
-
-    // Compare actual bytes: HEAD blob vs working directory file
-    try {
-      const { blob } = await g.readBlob({ fs, dir: '.', oid: blobOid });
-      const headBytes = new Uint8Array(blob);
-      const workdirBytes = await readFileBytesFsa(rootHandle, filepath);
-
-      // Only report as modified if bytes actually differ
-      if (!bytesEqual(headBytes, workdirBytes)) {
-        const name = filepath.includes('/') ? filepath.slice(filepath.lastIndexOf('/') + 1) : filepath;
-        changes.push({ path: filepath, name, status: 'modified' });
-      }
-    } catch {
-      // If we can't read either version, skip
-    }
-  }
-
-  // 2. Check for untracked files (in workdir but not in HEAD)
-  for (const filepath of workdirFiles) {
-    if (headTreeMap.has(filepath)) continue; // already tracked
-    if (ig.ignores(filepath)) continue;      // double-check .gitignore
-
-    const name = filepath.includes('/') ? filepath.slice(filepath.lastIndexOf('/') + 1) : filepath;
-    changes.push({ path: filepath, name, status: 'added' });
+  // statusMatrix often returns all-unmodified under FSA while files actually differ
+  if (matrix.length === 0) {
+    changes = await getGitStatusFsaFallback(rootHandle, g, fs, headTreeMap, ig);
+  } else if (changes.length === 0) {
+    const fb = await getGitStatusFsaFallback(rootHandle, g, fs, headTreeMap, ig);
+    if (fb.length > 0) changes = fb;
   }
 
   changes.sort((a, b) => a.path.localeCompare(b.path));
@@ -556,7 +587,7 @@ export async function getFileDiffFsa(rootHandle, filepath, headTreeMap, fs, stat
     } catch { /* file unreadable */ }
   }
 
-  return { oldText, newText, status };
+  return { oldText: normalizeEol(oldText), newText: normalizeEol(newText), status };
 }
 
 /**
@@ -575,7 +606,11 @@ export async function getFileDiffServer(serverRoot, filepath, status) {
     throw new Error(err.error || '无法获取 diff');
   }
   const data = await r.json();
-  return { oldText: data.oldText || '', newText: data.newText || '', status };
+  return {
+    oldText: normalizeEol(data.oldText || ''),
+    newText: normalizeEol(data.newText || ''),
+    status,
+  };
 }
 
 // ============================================================
