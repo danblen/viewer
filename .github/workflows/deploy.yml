@@ -2,8 +2,8 @@ name: Deploy to GitHub Pages & EC2
 
 # Builds BOTH variants on every push to main or view, so the two paths stay
 # in sync regardless of which branch triggered the run:
-#   - main  → root paths   (GH Pages /notesviewer/ , siplgo.xyz/)
-#   - view  → /view/ paths (GH Pages /notesviewer/view/ , siplgo.xyz/view/)
+#   - main  → root paths   (GH Pages /viewer/ , siplgo.xyz/)
+#   - view  → /view/ paths (GH Pages /viewer/view/ , siplgo.xyz/view/)
 #
 # GitHub Pages serves a single site artifact per repo, so both variants are
 # built here and combined into one artifact (view nested under /view/).
@@ -32,7 +32,7 @@ jobs:
         with:
           node-version: 20
 
-      # ---- main variant → site/ (base /notesviewer/) ----
+      # ---- main variant → site/ (base /viewer/) ----
       - uses: actions/checkout@v4
         with:
           ref: main
@@ -41,10 +41,10 @@ jobs:
         working-directory: main-src
         run: |
           npm ci
-          sed -i "s|base: '/'|base: '/notesviewer/'|" vite.config.js
+          sed -i "s|base: '/'|base: '/viewer/'|" vite.config.js
           npm run build
 
-      # ---- view variant → site/view/ (base /notesviewer/view/) ----
+      # ---- view variant → site/view/ (base /viewer/view/) ----
       - uses: actions/checkout@v4
         with:
           ref: view
@@ -53,7 +53,7 @@ jobs:
         working-directory: view-src
         run: |
           npm ci
-          sed -i "s|base: '/'|base: '/notesviewer/view/'|" vite.config.js
+          sed -i "s|base: '/'|base: '/viewer/view/'|" vite.config.js
           npm run build
 
       - name: Combine into single Pages artifact
