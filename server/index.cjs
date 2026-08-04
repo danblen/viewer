@@ -17,7 +17,7 @@ const { spawn, execFile, execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const rag = require('./rag-engine.cjs');
+const rag = require('./rag/engine.cjs');
 
 // ── Constants ─────────────────────────────────────────────
 
@@ -405,9 +405,38 @@ function runGit(repoPath, args) {
   });
 }
 
+/** Parse one line of `git status --porcelain=v1` (line-based, not -z). */
+function parsePorcelainLine(line) {
+  const trimmed = line.replace(/\r$/, '');
+  if (trimmed.length < 3) return null;
+  const x = trimmed[0];
+  const y = trimmed[1];
+  if (x === '?' && y === '?') {
+    const path = unquoteGitPath(trimmed.slice(3).trim());
+    return path ? { path, status: 'added' } : null;
+  }
+  let rest = trimmed.slice(3).trim();
+  const arrow = rest.indexOf(' -> ');
+  if (arrow >= 0) rest = rest.slice(arrow + 4);
+  const path = unquoteGitPath(rest);
+  if (!path) return null;
+  let status = 'modified';
+  if (y === 'D' || x === 'D') status = 'deleted';
+  else if (x === 'A') status = 'added';
+  else if (y === 'M' || x === 'M') status = 'modified';
+  return { path, status };
+}
+
+function unquoteGitPath(p) {
+  if (p.startsWith('"') && p.endsWith('"')) {
+    return p.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+  }
+  return p;
+}
+
 /** GET /api/git-status?path=<absPath>
  *  Returns { isRepo, branch, changes: [{ path, status }] }
- *  Uses `git status --porcelain=v1` for the change list.
+ *  Uses `git status --porcelain=v1` (line-based) for the change list.
  */
 async function handleGitStatus(res, url) {
   const params = new URL(url, 'http://localhost').searchParams;
@@ -436,37 +465,24 @@ async function handleGitStatus(res, url) {
   const branchRes = await runGit(repoPath, ['rev-parse', '--abbrev-ref', 'HEAD']);
   const branch = branchRes.code === 0 ? branchRes.stdout.trim() : 'HEAD';
 
-  // Get porcelain status (--no-renames avoids -z rename parsing complexity)
-  const statusRes = await runGit(repoPath, ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--no-renames']);
-  if (statusRes.code !== 0) {
-    sendJSON(res, 200, { isRepo: true, branch, changes: [] });
-    return;
-  }
-
-  // Parse porcelain -z output (null-separated entries)
-  // Each entry: "XY filename" — with --no-renames, renames show as D + A pairs
   const changes = [];
-  const entries = statusRes.stdout.split('\0').filter((e) => e.length > 0);
-  for (let entry of entries) {
-    if (entry.length < 3) continue;
-    const x = entry[0]; // staged status
-    const y = entry[1]; // workdir status
-    let filename = entry.slice(3);
+  const seen = new Set();
 
-    // Strip surrounding quotes (git quotes filenames with special chars)
-    if (filename.startsWith('"') && filename.endsWith('"')) {
-      filename = filename.slice(1, -1);
+  const addChange = (filePath, status) => {
+    const normalized = filePath.replace(/\\/g, '/').trim();
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    changes.push({ path: normalized, status });
+  };
+
+  const statusRes = await runGit(repoPath, [
+    'status', '--porcelain=v1', '--untracked-files=normal', '--no-renames',
+  ]);
+  if (statusRes.code === 0) {
+    for (const line of statusRes.stdout.split(/\r?\n/)) {
+      const parsed = parsePorcelainLine(line);
+      if (parsed) addChange(parsed.path, parsed.status);
     }
-
-    // Determine status
-    let status;
-    const combined = x + y;
-    if (y === '?' || combined === '??') status = 'added';
-    else if (y === 'D' || x === 'D') status = 'deleted';
-    else if (x === 'A' || x === '?') status = 'added';
-    else status = 'modified';
-
-    changes.push({ path: filename, status });
   }
 
   sendJSON(res, 200, { isRepo: true, branch, changes });

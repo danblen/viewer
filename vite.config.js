@@ -15,7 +15,7 @@ function cloneServerPlugin() {
   return {
     name: 'clone-server',
     configureServer(server) {
-      const serverScript = path.resolve(__dirname, 'server/clone-server.cjs')
+      const serverScript = path.resolve(__dirname, 'server/index.cjs')
       proc = spawn('node', [serverScript], { stdio: 'pipe', cwd: __dirname })
       proc.on('error', (err) => console.error('[clone-server] spawn error:', err.message))
       proc.on('exit', (code) => {

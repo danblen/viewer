@@ -107,7 +107,7 @@ jobs:
           cp -r main-src/dist/* upload/dist-root/
           cp -r view-src/dist/* upload/dist-view/
           cp -r main-src/deploy/* upload/deploy/
-          cp main-src/server/clone-server.cjs upload/clone-server.cjs
+          cp -r main-src/server upload/server
 
       - name: Prepare EC2 directory
         uses: appleboy/ssh-action@v1.2.0
@@ -147,8 +147,8 @@ jobs:
             sudo mkdir -p /usr/share/nginx/html/view
             sudo cp -r /tmp/deploy-notesview/dist-view/* /usr/share/nginx/html/view/
 
-            # Backend (shared clone server)
-            sudo cp /tmp/deploy-notesview/clone-server.cjs /opt/notesview/
+            # Backend (clone + RAG server)
+            sudo cp -r /tmp/deploy-notesview/server /opt/notesview/
             sudo systemctl restart notesview
 
             rm -rf /tmp/deploy-notesview

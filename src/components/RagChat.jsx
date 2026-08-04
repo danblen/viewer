@@ -1,23 +1,23 @@
 /**
  * RagChat — per-space semantic retrieval + AI Q&A panel.
  *
- * Indexing and querying run on the local clone-server (server/rag-engine.cjs).
+ * Indexing and querying run on the local server (server/index.cjs).
  * Server-backed spaces are indexed by disk path; browser (FSA) spaces ship
  * their file contents to the backend. The OpenAI-compatible API key stays in
  * the browser (localStorage) and is sent per-request, never persisted server-side.
  */
 
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
-import { SparklesIcon, SettingsIcon, FileTypeIcon } from './Icons';
-import { getRagConfig, setRagConfig, isRagConfigured } from '../utils/ragConfig';
+import { SparklesIcon, SettingsIcon, FileTypeIcon } from './host/HostIcons';
+import { getRagConfig, setRagConfig, isRagConfigured } from '../lib/rag/config';
 import {
   getSpaceKey,
   getRagStatus,
   buildRagIndex,
   queryRag,
   clearRagIndex,
-} from '../utils/rag';
-import { collectDocuments } from '../utils/fileSystem';
+} from '../lib/rag/client';
+import { collectDocuments } from '../lib/spaces';
 
 function formatTime(ts) {
   if (!ts) return '';

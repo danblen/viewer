@@ -1,7 +1,7 @@
 /**
  * rag-engine.cjs — per-space Retrieval-Augmented Generation.
  *
- * Provides three HTTP handlers, wired up by clone-server.cjs:
+ * Provides three HTTP handlers, wired up by server/index.cjs:
  *   POST /api/rag/index   — SSE: (re)build the vector index for a space
  *   POST /api/rag/query   — SSE: retrieve context + stream an AI answer
  *   GET  /api/rag/status  — index metadata for a space

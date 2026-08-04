@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { ExitIcon } from './Icons';
-import { cloneRepo, pickFolder, saveLastPath, checkHealth, searchRepos } from '../utils/clone';
-import { getServerUrl, setServerUrl, getServerLabel, isDev } from '../utils/apiConfig';
+import { ExitIcon } from './host/HostIcons';
+import { cloneRepo, pickFolder, saveLastPath, checkHealth, searchRepos } from '../lib/clone/client';
+import { getServerUrl, setServerUrl, getServerLabel, isDev } from '../lib/api/config';
 
 const DEFAULT_DEST = '/Volumes/z/codemy';
 let _taskId = 0;
