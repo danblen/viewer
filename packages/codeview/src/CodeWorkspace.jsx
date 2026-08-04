@@ -180,7 +180,6 @@ export default function CodeWorkspace({
   const sidebarFolderRef = useRef(null);
   const fileOpenTimerRef = useRef(null);
   const fileLeaveTimerRef = useRef(null);
-  const rightPanelTimerRef = useRef(null);
   const searchFileHoverTimerRef = useRef(null);
   const isGitRepoRef = useRef(false);
   isGitRepoRef.current = isGitRepo;
@@ -212,13 +211,11 @@ export default function CodeWorkspace({
     setSidebarOpen(layoutMode !== 'auto-hide');
   }, [layoutMode]);
 
-  // ── Right panel open/close (debounced open) ──────────────
+  // ── Right panel open/close (click toggle) ─────────────────
   const openRightPanel = useCallback((panel) => {
-    clearTimeout(rightPanelTimerRef.current);
-    rightPanelTimerRef.current = setTimeout(() => setActiveRightPanel(panel), 80);
+    setActiveRightPanel(prev => prev === panel ? null : panel);
   }, []);
   const closeRightPanel = useCallback(() => {
-    clearTimeout(rightPanelTimerRef.current);
     setActiveRightPanel(null);
   }, []);
 
@@ -658,7 +655,7 @@ export default function CodeWorkspace({
               {hasSearch && (
                 <div
                   className={`right-panel-trigger-icon${activeRightPanel === 'search' ? ' active' : ''}`}
-                  onMouseEnter={() => openRightPanel('search')}
+                  onClick={() => openRightPanel('search')}
                   title="搜索"
                 >
                   <SearchIcon size={16} className="trigger-icon" />
@@ -668,7 +665,7 @@ export default function CodeWorkspace({
                 <div
                   key={p.id}
                   className={`right-panel-trigger-icon${activeRightPanel === p.id ? ' active' : ''}`}
-                  onMouseEnter={() => openRightPanel(p.id)}
+                  onClick={() => openRightPanel(p.id)}
                   title={p.title}
                 >
                   <span className="trigger-icon">{p.icon}</span>
@@ -677,7 +674,7 @@ export default function CodeWorkspace({
               {showGitTrigger && (
                 <div
                   className={`right-panel-trigger-icon git${activeRightPanel === 'git' ? ' active' : ''}`}
-                  onMouseEnter={() => openRightPanel('git')}
+                  onClick={() => openRightPanel('git')}
                   title="Git 更改"
                 >
                   <svg width="15" height="15" viewBox="0 0 16 16" fill="none" className="trigger-icon">
@@ -701,6 +698,9 @@ export default function CodeWorkspace({
                 title="拖动调整面板宽度"
               />
               <div className="right-panel-content" style={{ flex: 1, minWidth: 0 }}>
+                {activeRightPanel && (
+                  <button className="right-panel-close" onClick={closeRightPanel} title="关闭面板">✕</button>
+                )}
                 {activeRightPanel === 'search' && hasSearch && (
                   <SearchPanel
                     provider={provider}

@@ -125,14 +125,7 @@ export default function ContentArea({ file, provider, contentMaxWidth, setConten
 
   // ── Empty state ─────────────────────────────────────────
   if (!file) {
-    return (
-      <main className="content-area" ref={areaRef}>
-        <div className="content-empty">
-          <div className="content-empty-icon">📖</div>
-          <p>将鼠标悬停在文件上即可阅读</p>
-        </div>
-      </main>
-    );
+    return <main className="content-area" ref={areaRef} />;
   }
 
   const editable = EDITABLE_TYPES.has(file.type) && Boolean(provider?.capabilities?.write);

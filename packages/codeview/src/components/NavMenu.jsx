@@ -228,7 +228,7 @@ function NavMenuInner({
   // ── Empty state ──────────────────────────────────────────
   if (!items || items.length === 0) {
     if (variant === 'sidebar') {
-      return <div className="sidebar-empty">悬停在顶部菜单上以浏览笔记</div>;
+      return <div className="sidebar-empty">暂无文件</div>;
     }
     return null;
   }

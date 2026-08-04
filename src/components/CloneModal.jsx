@@ -239,7 +239,7 @@ export default function CloneModal({ onClose, onOpenAsSpace }) {
               {health.error ? `${health.error}。` : ''}
               {isDev()
                 ? '请确认克隆服务已随开发服务器启动（查看终端日志）'
-                : <>此站点无后端。请在<b>本地电脑</b>的 notesview 目录运行 <code>npm run server</code> 启动克隆服务（它会把仓库克隆到你本地磁盘），然后点「重试」自动连接 <code>http://localhost:5015</code>。若仍连不上，请在浏览器允许本站点访问本地网络（Chrome 地址栏右侧会提示），或点「配置」手动填写地址。</>}
+                : <>此站点无后端。请在<b>本地电脑</b>的 viewer 目录运行 <code>npm run server</code> 启动克隆服务（它会把仓库克隆到你本地磁盘），然后点「重试」自动连接 <code>http://localhost:5015</code>。若仍连不上，请在浏览器允许本站点访问本地网络（Chrome 地址栏右侧会提示），或点「配置」手动填写地址。</>}
             </div>
           )}
         </div>
@@ -301,7 +301,7 @@ export default function CloneModal({ onClose, onOpenAsSpace }) {
                     )}
                     {t.status === 'done' && onOpenAsSpace && (
                       <button className="clone-task-open" onClick={(e) => { e.stopPropagation(); onOpenAsSpace(t.dest); }}
-                        title="打开为笔记空间">打开</button>
+                        title="打开为空间">打开</button>
                     )}
                   </span>
                 </div>

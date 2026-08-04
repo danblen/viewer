@@ -134,10 +134,10 @@ export default function SpaceSelector({
         className={`spaces-switcher ${open ? 'open' : ''} ${activeSpaceId ? '' : 'no-active'}`}
         onMouseEnter={handleEnter}
         onMouseLeave={handleLeave}
-        title="切换笔记空间 / 打开目录"
+        title="切换空间 / 打开目录"
       >
         <SpacesIcon size={15} />
-        <span className="spaces-label">{activeSpace?.name || rootName || '笔记空间'}</span>
+        <span className="spaces-label">{activeSpace?.name || rootName || '文件空间'}</span>
         <ChevronRight size={10} className="spaces-chevron" />
       </div>
 

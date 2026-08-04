@@ -345,13 +345,7 @@ function RagPanelInner({ rootHandle, serverRoot, spaceId, rootName, onCitationCl
       {error && <div className="rag-error">{error}</div>}
 
       <div className="rag-conversation" ref={scrollRef}>
-        {messages.length === 0 ? (
-          <div className="rag-empty">
-            {status.exists
-              ? '就当前空间的笔记内容提问，回答会附带来源引用。'
-              : '先建立索引，然后即可基于笔记内容进行问答。'}
-          </div>
-        ) : (
+        {messages.length === 0 ? null : (
           messages.map((m, i) => (
             <div key={i} className={`rag-msg rag-msg-${m.role}`}>
               <div className="rag-msg-text">

@@ -112,7 +112,7 @@ export default function App() {
         activeSpaceIdRef.current = null;
         saveLastSpaceId(null);
       }
-      alert(`无法切换到该笔记空间：\n${err.message}`);
+      alert(`无法切换到该空间：\n${err.message}`);
     } finally {
       setLoading(false);
     }
