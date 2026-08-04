@@ -37,7 +37,7 @@ export async function selectAndBuildTree() {
 
 export async function switchToSpace(spaceId) {
   const handle = await getDirHandle(spaceId);
-  if (!handle) throw new Error('该笔记空间已失效，请重新选择目录');
+  if (!handle) throw new Error('该空间已失效，请重新选择目录');
   if (!(await verifyPermission(handle))) throw new Error('未获得目录读取权限');
   return { handle, name: handle.name };
 }
