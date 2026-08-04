@@ -11,7 +11,7 @@ import react from '@vitejs/plugin-react';
 // app shares one React instance (bundling React would break hooks).
 //
 // The result is a drop-in `codeview.js` + `codeview.css` pair that a consumer
-// can vendor directly (no npm peer deps to install). Used by AI-team4.
+// can vendor directly (no npm peer deps to install). Used by aiteam.
 export default defineConfig({
   plugins: [react()],
   build: {

@@ -46,10 +46,10 @@ export default defineConfig({
   plugins: [react(), cloneServerPlugin()],
   base: '/',
   server: {
-    port: process.env.PORT || 5000,
+    port: process.env.PORT || 5200,
     proxy: {
       '/api': {
-        target: 'http://localhost:5010',
+        target: 'http://localhost:5210',
         changeOrigin: true,
       },
     },
