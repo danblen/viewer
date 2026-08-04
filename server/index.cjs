@@ -21,7 +21,7 @@ const rag = require('./rag/engine.cjs');
 
 // ── Constants ─────────────────────────────────────────────
 
-const PORT = 5015;
+const PORT = 5010;
 const CLONE_TIMEOUT = 10 * 60 * 1000;
 const MAX_BUFFER = 10 * 1024 * 1024;
 const CORS_HEADERS = {
@@ -261,7 +261,8 @@ const server = http.createServer((req, res) => {
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.log(`[clone-server] port ${PORT} in use — assuming another instance`);
+    console.log(`[clone-server] port ${PORT} in use, trying ${PORT + 1}...`);
+    server.listen(PORT + 1);
   } else {
     console.error('[clone-server] error:', err.message);
   }
